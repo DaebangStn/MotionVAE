@@ -1,7 +1,7 @@
 import copy
 import os
 import os.path as osp
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from datetime import datetime
 import time
 import multiprocessing as mp
@@ -22,7 +22,7 @@ from aitviewer.viewer import Viewer
 from aitviewer.models.smpl import SMPLLayer
 from aitviewer.renderables.smpl import SMPLSequence
 from aitviewer.renderables.rigid_bodies import RigidBodies
-from aitviewer.utils.so3 import resample_rotations, interpolate_rotations, aa2rot_numpy
+from aitviewer.utils.so3 import resample_rotations, interpolate_rotations, aa2rot_numpy, rot2aa_numpy
 from aitviewer.utils import interpolate_positions, local_to_global, resample_positions, to_numpy, to_torch
 
 import torch
