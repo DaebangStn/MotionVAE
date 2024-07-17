@@ -1,46 +1,7 @@
-import numpy as np
-
 from mvae.utils import *
 
 
-def global_to_local(poses: np.ndarray, parents: List[int], output_format="aa", input_format="aa") -> np.ndarray:
-    """
-    Convert global joint angles to relative ones by unrolling the kinematic chain.
-    :param poses: A tensor of shape (N, N_JOINTS*3) defining the global poses in angle-axis format.
-    :param parents: A list of parents for each joint j, i.e. parent[j] is the parent of joint j.
-    :param output_format: 'aa' or 'rotmat'.
-    :param input_format: 'aa' or 'rotmat'
-    :return: The global joint angles as a tensor of shape (N, N_JOINTS*DOF).
-    """
-    assert output_format in ["aa", "rotmat"]
-    assert input_format in ["aa", "rotmat"]
-    dof = 3 if input_format == "aa" else 9
-    n_joints = poses.shape[-1] // dof
-    if input_format == "aa":
-        global_oris = aa2rot_numpy(poses.reshape((-1, 3)))
-    else:
-        global_oris = poses
-    global_oris = global_oris.reshape((-1, n_joints, 3, 3))
-    local_oris = np.zeros_like(global_oris)
-
-    for j in range(n_joints):
-        if parents[j] < 0:
-            # root rotation
-            local_oris[..., j, :, :] = global_oris[..., j, :, :]
-        else:
-            parent_rot = global_oris[..., parents[j], :, :]
-            global_rot = global_oris[..., j, :, :]
-            local_oris[..., j, :, :] = np.matmul(parent_rot.transpose((0, 2, 1)), global_rot)
-
-    if output_format == "aa":
-        local_oris = rot2aa_numpy(local_oris.reshape((-1, 3, 3)))
-        res = local_oris.reshape((-1, n_joints * 3))
-    else:
-        res = local_oris.reshape((-1, n_joints * 9))
-    return res
-
 frames = 500
-fps = 30
 pose0 = torch.from_numpy(np.load('res/mocap/pose1.npy')).float().cuda()
 model = torch.load('runs/0717_160516_0d04/posevae_c1_e6_l32.pt').cuda()
 model.eval()

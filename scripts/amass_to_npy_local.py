@@ -38,27 +38,37 @@ if __name__ == "__main__":
 
     jvel = estimate_velocity(jpos, 1)
 
-    jori = local_to_global(torch.from_numpy(poses), skel[:, 0], output_format='rotmat')
+    jori = torch.from_numpy(poses)
+    jori = aa2rot_torch(jori.reshape(-1, 22, 3))
     jori = to_numpy(jori.reshape(num_frame, -1, 3, 3))
 
     root_poses = jori[:, 0]
     root_poses_inv = invert_rotmat(root_poses)
-    root_face_anvel = face_anvel_from_root_rotmat(root_poses)
+    root_anvel = estimate_angular_velocity(root_poses, 1)
 
-    # Truncate position values to make the size same to the velocity
-    face_jori = np.matmul(root_poses_inv[:, np.newaxis, :, :], jori)[2:, :, :, :2]
-    face_jpos_local = np.einsum('ijk,ilk->ilj', root_poses_inv, jpos_local)[2:]
-    face_jvel = np.einsum('ijk,ilk->ilj', root_poses_inv[2:], jvel)
+    # 1. Truncate position values to make the size same to the velocity
+    # 2. Remove root joint
+    face_jori = jori[2:, 1:, :, :2]
+    face_jpos_local = np.einsum('ijk,ilk->ilj', root_poses_inv, jpos_local)[2:, 1:]
+    face_jvel = np.einsum('ijk,ilk->ilj', root_poses_inv[2:], jvel)[:, 1:]
     face_root_vel = np.einsum('ijk,ik->ij', root_poses_inv[2:], root_vel)
 
     num_frame = num_frame - 2  # 2 is due to the diff operation
 
-    #  267 = 2 + 1 + 3 * 22 + 3 * 22 + 6 * 22
-    data = np.concatenate([face_root_vel[:, :2], root_face_anvel[:, None], face_jpos_local.reshape(num_frame, -1),
+    #  256 = 3 + 3 + 3 * 21 + 3 * 21 + 6 * 21
+    data = np.concatenate([face_root_vel, root_anvel, face_jpos_local.reshape(num_frame, -1),
                            face_jvel.reshape(num_frame, -1), face_jori.reshape(num_frame, -1)], axis=1)
     end_indices = np.array([num_frame - 1])
     out = {
         'data': data,
         'end_indices': end_indices
     }
-    np.savez("./res/mocap/mvae1.npz", **out)
+    np.savez("./res/mocap/mvae1_local.npz", **out)
+
+    if arg.view:
+        rbs = RigidBodies(face_jpos_local, face_jori, length=0.1)
+        v = Viewer()
+        v.run_animations = True
+        v.scene.camera.position = np.array([10.0, 2.5, 0.0])
+        v.scene.add(seq)
+        v.run()

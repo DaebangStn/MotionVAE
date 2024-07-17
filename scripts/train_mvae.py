@@ -92,18 +92,17 @@ def feed_vae(pose_vae, ground_truth, condition, future_weights):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--mocap",
+        "cfg",
         type=str,
-        default="res/mocap/mvae1_local.npz",
-        required=False,
-        help="Mocap file path",
+        help="Train configuration file path",
     )
     args_cmd = parser.parse_args()
+    cfg = load_yaml(args_cmd.cfg)
 
     # setup parameters
     args = SimpleNamespace(
         device="cuda:0" if torch.cuda.is_available() else "cpu",
-        mocap_file=args_cmd.mocap,
+        mocap_file=cfg['mocap'],
         norm_mode="zscore",
         latent_size=32,
         num_embeddings=12,
@@ -196,11 +195,11 @@ def main():
         pose_vae_path = "posevae_c{}_n{}_l{}.pt".format(
             args.num_condition_frames, args.num_embeddings, args.latent_size
         )
-    logdir_path_ = logdir_path()
+    logdir_path_ = logdir_path(cfg)
     pose_vae_path = osp.join(logdir_path_, pose_vae_path)
     logger = StatsLogger(args, log_dir=logdir_path_)
     with open(osp.join(logdir_path_, "cfg.yaml"), "w") as f:
-        yaml.dump({'mocap': args_cmd.mocap}, f)
+        yaml.dump(cfg, f)
 
     if args.load_saved_model:
         pose_vae = torch.load(pose_vae_path, map_location=args.device)

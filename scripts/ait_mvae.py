@@ -31,7 +31,6 @@ def anvel_to_rotmat(anvel: np.ndarray) -> np.ndarray:
     return rotmat
 
 frames = 2500
-fps = 30
 pose_vae_path = 'runs/0717_215930_0b16/posevae_c1_e6_l32.pt'
 pose0 = load_pose0(pose_vae_path).float().cuda()
 model = torch.load(pose_vae_path).cuda()
