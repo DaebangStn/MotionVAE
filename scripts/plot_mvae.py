@@ -6,7 +6,7 @@ from mvae.utils import *
 frames = 500
 fps = 30
 pose0 = torch.from_numpy(np.load('res/mocap/pose1.npy')).float().cuda()
-model = torch.load('runs/0716_202743_d8ff/posevae_c1_e6_l32.pt').cuda()
+model = torch.load('runs/0717_160516_0d04/posevae_c1_e6_l32.pt').cuda()
 model.eval()
 
 poses = []
@@ -23,7 +23,7 @@ with torch.no_grad():
         poses.append(curr_pose.cpu().numpy())
 
 poses = np.concatenate(poses, axis=0)
-poses = poses[:, 11:].reshape(-1, 38, 3)
+poses = poses[:, 3:69].reshape(-1, 22, 3)
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')

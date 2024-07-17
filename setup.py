@@ -17,6 +17,7 @@ setup(
         "tqdm",
         "gym",
         "pybullet",
+        "aitviewer @ git+https://github.com/DaebangStn/aitviewer.git@main",
     ],
     packages=find_packages(include=["mvae*"], exclude=["res", "scripts", ]),
     classifiers=[

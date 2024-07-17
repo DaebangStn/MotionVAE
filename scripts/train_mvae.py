@@ -92,7 +92,7 @@ def main():
     parser.add_argument(
         "--mocap",
         type=str,
-        default="res/mocap/motion1.npz",
+        default="res/mocap/mvae1.npz",
         required=False,
         help="Mocap file path",
     )

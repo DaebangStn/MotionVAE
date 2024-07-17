@@ -1,7 +1,7 @@
 import copy
 import os
 import os.path as osp
-from typing import Optional
+from typing import Optional, Tuple
 from datetime import datetime
 import time
 import multiprocessing as mp
@@ -9,12 +9,21 @@ from types import SimpleNamespace
 
 import gym
 import argparse
+from argparse import ArgumentParser
 import numpy as np
 from git import Repo
 from tqdm import tqdm
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+
+from aitviewer.scene.camera import PinholeCamera
+from aitviewer.viewer import Viewer
+from aitviewer.models.smpl import SMPLLayer
+from aitviewer.renderables.smpl import SMPLSequence
+from aitviewer.renderables.rigid_bodies import RigidBodies
+from aitviewer.utils.so3 import resample_rotations, interpolate_rotations, aa2rot_numpy
+from aitviewer.utils import interpolate_positions, local_to_global, resample_positions, to_numpy, to_torch
 
 import torch
 import torch.optim as optim

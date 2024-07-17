@@ -107,6 +107,7 @@ class EnvBase(gym.Env):
 
     def load_data(self, pose_vae_path):
         mocap_file = os.path.join(current_dir, "pose0.npy")
+        # mocap_file = 'res/mocap/pose1.npy'
         data = torch.from_numpy(np.load(mocap_file))
         self.mocap_data = data.float().to(self.device)
 
