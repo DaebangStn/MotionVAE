@@ -1,5 +1,0 @@
-gym
-imageio
-matplotlib
-pybullet
-torch
