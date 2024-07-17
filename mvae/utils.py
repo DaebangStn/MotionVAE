@@ -1,5 +1,6 @@
 import copy
 import os
+from glob import glob
 import os.path as osp
 from typing import Optional, Tuple, List
 from datetime import datetime
@@ -8,6 +9,7 @@ import multiprocessing as mp
 from types import SimpleNamespace
 
 import gym
+import yaml
 import argparse
 from argparse import ArgumentParser
 import numpy as np
@@ -15,6 +17,7 @@ from git import Repo
 from tqdm import tqdm
 import matplotlib
 import matplotlib.pyplot as plt
+from scipy.linalg import expm
 from matplotlib.animation import FuncAnimation
 
 from aitviewer.scene.camera import PinholeCamera
@@ -22,7 +25,8 @@ from aitviewer.viewer import Viewer
 from aitviewer.models.smpl import SMPLLayer
 from aitviewer.renderables.smpl import SMPLSequence
 from aitviewer.renderables.rigid_bodies import RigidBodies
-from aitviewer.utils.so3 import resample_rotations, interpolate_rotations, aa2rot_numpy, rot2aa_numpy
+from aitviewer.utils.so3 import (resample_rotations, interpolate_rotations, aa2rot_numpy, rot2aa_numpy, rot2aa_torch,
+                                 aa2rot_torch)
 from aitviewer.utils import interpolate_positions, local_to_global, resample_positions, to_numpy, to_torch
 
 import torch
@@ -51,3 +55,16 @@ def logdir_path() -> str:
     # memo = f'_{memo}' if memo else ''
     # return f'runs/{timestamp}{name}{git_hash}{memo}'
     return f'runs/{timestamp}{git_hash}'
+
+
+def load_pose0(pose_vae_path: str) -> torch.Tensor:
+    basepath = osp.dirname(pose_vae_path)
+    cfg_file = osp.join(basepath, 'cfg.yaml')
+    with open(cfg_file, 'r') as f:
+        cfg = yaml.safe_load(f)
+    mocap_file = cfg['mocap']
+    data = torch.from_numpy(np.load(mocap_file)['data'])
+    pose0_idx = torch.randint(0, data.shape[0], (1,))  # sample initial frame
+    return data[pose0_idx:pose0_idx + 1]
+
+

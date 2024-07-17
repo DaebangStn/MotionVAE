@@ -1,17 +1,11 @@
-import glob
-import os
-current_dir = os.path.dirname(os.path.realpath(__file__))
-
-import gym
 import gym.spaces
 import gym.utils
 import gym.utils.seeding
-import numpy as np
-import torch
 import torch.nn.functional as F
 
 from mvae.common.misc_utils import line_to_point_distance
 from mvae.environments.mocap_renderer import extract_joints_xyz
+from mvae.utils import *
 
 
 
@@ -105,18 +99,8 @@ class EnvBase(gym.Env):
         high = np.inf * np.ones([self.action_dim])
         self.action_space = gym.spaces.Box(-high, high, dtype=np.float32)
 
-    def load_data(self, pose_vae_path):
-        mocap_file = os.path.join(current_dir, "pose0.npy")
-        # mocap_file = 'res/mocap/pose1.npy'
-        data = torch.from_numpy(np.load(mocap_file))
-        self.mocap_data = data.float().to(self.device)
-
-        if os.path.isdir(pose_vae_path):
-            basepath = os.path.normpath(pose_vae_path)
-            pose_vae_path = glob.glob(os.path.join(basepath, "posevae*.pt"))[0]
-        else:
-            basepath = os.path.dirname(pose_vae_path)
-
+    def load_data(self, pose_vae_path: str):
+        self.mocap_data = load_pose0(pose_vae_path).float().to(self.device)
         self.pose_vae_model = torch.load(pose_vae_path, map_location=self.device)
         self.pose_vae_model.eval()
 
@@ -125,7 +109,6 @@ class EnvBase(gym.Env):
         ), "VAE cannot skip this many frames"
 
         print("=========")
-        print("Loaded: ", mocap_file)
         print("Loaded: ", pose_vae_path)
         print("=========")
 

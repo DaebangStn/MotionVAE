@@ -1,3 +1,5 @@
+import yaml
+
 from mvae.common.misc_utils import update_linear_schedule
 from mvae.algorithms.models import PoseVAE, PoseVQVAE, PoseMixtureVAE, PoseMixtureSpecialistVAE
 from mvae.utils import *
@@ -92,7 +94,7 @@ def main():
     parser.add_argument(
         "--mocap",
         type=str,
-        default="res/mocap/mvae1.npz",
+        default="res/mocap/mvae1_local.npz",
         required=False,
         help="Mocap file path",
     )
@@ -195,7 +197,10 @@ def main():
             args.num_condition_frames, args.num_embeddings, args.latent_size
         )
     logdir_path_ = logdir_path()
-    pose_vae_path = os.path.join(logdir_path_, pose_vae_path)
+    pose_vae_path = osp.join(logdir_path_, pose_vae_path)
+    logger = StatsLogger(args, log_dir=logdir_path_)
+    with open(osp.join(logdir_path_, "cfg.yaml"), "w") as f:
+        yaml.dump({'mocap': args_cmd.mocap}, f)
 
     if args.load_saved_model:
         pose_vae = torch.load(pose_vae_path, map_location=args.device)
@@ -227,8 +232,6 @@ def main():
     # buffer for later
     shape = (args.mini_batch_size, args.num_condition_frames, frame_size)
     history = torch.empty(shape).to(args.device)
-
-    logger = StatsLogger(args, log_dir=logdir_path_)
 
     tq = tqdm(total=args.num_epochs, desc="Training", unit="epoch", leave=True)
     for ep in range(1, args.num_epochs + 1):

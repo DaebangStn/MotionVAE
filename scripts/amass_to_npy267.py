@@ -136,4 +136,3 @@ if __name__ == "__main__":
         'end_indices': end_indices
     }
     np.savez("./res/mocap/mvae1.npz", **out)
-    np.save("./res/mocap/pose1", data[0:1])

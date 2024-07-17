@@ -1,48 +1,40 @@
-import numpy as np
-
 from mvae.utils import *
 
 
-def global_to_local(poses: np.ndarray, parents: List[int], output_format="aa", input_format="aa") -> np.ndarray:
+def anvel_to_rotmat(anvel: np.ndarray) -> np.ndarray:
     """
-    Convert global joint angles to relative ones by unrolling the kinematic chain.
-    :param poses: A tensor of shape (N, N_JOINTS*3) defining the global poses in angle-axis format.
-    :param parents: A list of parents for each joint j, i.e. parent[j] is the parent of joint j.
-    :param output_format: 'aa' or 'rotmat'.
-    :param input_format: 'aa' or 'rotmat'
-    :return: The global joint angles as a tensor of shape (N, N_JOINTS*DOF).
+    Convert angular velocities to rotation matrices.
+    :param anvel: A numpy array of shape (f, 3).
+    :return: A numpy array of shape (f, 3, 3).
     """
-    assert output_format in ["aa", "rotmat"]
-    assert input_format in ["aa", "rotmat"]
-    dof = 3 if input_format == "aa" else 9
-    n_joints = poses.shape[-1] // dof
-    if input_format == "aa":
-        global_oris = aa2rot_numpy(poses.reshape((-1, 3)))
-    else:
-        global_oris = poses
-    global_oris = global_oris.reshape((-1, n_joints, 3, 3))
-    local_oris = np.zeros_like(global_oris)
+    assert isinstance(anvel, np.ndarray)
+    assert anvel.shape[-1] == 3
+    f = anvel.shape[0]
+    rotmat = np.zeros((f, 3, 3))
+    rotmat[0] = np.eye(3)
+    for i in range(f-1):
+        w = anvel[i]
+        w_skew = np.array([
+            [0, -w[2], w[1]],
+            [w[2], 0, -w[0]],
+            [-w[1], w[0], 0]
+        ])
+        rotmat[i+1] = expm(w_skew) @ rotmat[i]
 
-    for j in range(n_joints):
-        if parents[j] < 0:
-            # root rotation
-            local_oris[..., j, :, :] = global_oris[..., j, :, :]
-        else:
-            parent_rot = global_oris[..., parents[j], :, :]
-            global_rot = global_oris[..., j, :, :]
-            local_oris[..., j, :, :] = np.matmul(parent_rot.transpose((0, 2, 1)), global_rot)
+    yUpToZUp = np.array([
+        [1, 0, 0],
+        [0, 0, 1],
+        [0, -1, 0]
+    ])
+    rotmat = rotmat @ yUpToZUp.T
 
-    if output_format == "aa":
-        local_oris = rot2aa_numpy(local_oris.reshape((-1, 3, 3)))
-        res = local_oris.reshape((-1, n_joints * 3))
-    else:
-        res = local_oris.reshape((-1, n_joints * 9))
-    return res
+    return rotmat
 
-frames = 500
+frames = 2500
 fps = 30
-pose0 = torch.from_numpy(np.load('res/mocap/pose1.npy')).float().cuda()
-model = torch.load('runs/0717_160516_0d04/posevae_c1_e6_l32.pt').cuda()
+pose_vae_path = 'runs/0717_215930_0b16/posevae_c1_e6_l32.pt'
+pose0 = load_pose0(pose_vae_path).float().cuda()
+model = torch.load(pose_vae_path).cuda()
 model.eval()
 
 poses = []
@@ -59,24 +51,19 @@ with torch.no_grad():
         poses.append(curr_pose.cpu().numpy())
 
 poses = np.concatenate(poses, axis=0)
-
-yaw = np.cumsum(poses[:, 2], axis=0)
-one = np.ones_like(yaw)
-zero = np.zeros_like(yaw)
-col1 = np.stack([np.cos(yaw), np.sin(yaw)], axis=-1)
-col2 = np.stack([-np.sin(yaw), np.cos(yaw)], axis=-1)
-root_rot = np.stack([col1, col2], axis=-1)
-
-root_pos = np.zeros((frames, 2))
+root_anvel = poses[:, 3:6]
+root_rot = anvel_to_rotmat(root_anvel)
+zero = np.zeros((frames, 1))
+root_pos = np.zeros((frames, 3))
 for i in range(frames-1):
-    vel = root_rot[i] @ poses[i, :2]
+    vel = root_rot[i] @ poses[i, :3]
     root_pos[i+1] = root_pos[i] + vel
-root_pos = np.concatenate([root_pos, zero.reshape(-1, 1)], axis=-1)
+root_pos[:, 2] = 0
 
 jpos = poses[:, 3:69].reshape(-1, 22, 3)
-jpos_xz = np.einsum('ijk,ilk->ilj', root_rot, jpos[:, :, [0, 2]])  # rotate xz along y axis
-jpos = np.concatenate([jpos_xz, jpos[:, :, 1:2]], axis=-1)  # y-up
+jpos = np.einsum('ijk,ilk->ilj', root_rot, jpos)  # rotate xz along y axis
 jpos += root_pos[:, None, :]
+root_rot = rot2aa_numpy(root_rot)
 
 jori_6d = poses[:, -132:].reshape(-1, 22, 3, 2)
 jori = np.zeros((frames, 22, 3, 3))
@@ -93,33 +80,21 @@ for f in range(frames):
         v3 = np.cross(v1, v2)
         jori[f, j] = np.stack([v1, v2, v3], axis=-1)
 
-smpl_layer = SMPLLayer(model_type="smplh")
-parents = smpl_layer.skeletons()["body"].T[:, 0]
-jori = global_to_local(jori.reshape(-1, 22*9), parents, output_format="rotmat", input_format="rotmat")
-jori = jori.reshape(-1, 22, 3, 3)
 rbs = RigidBodies(jpos, jori, length=0.1)
-
-col1 = np.stack([np.cos(yaw), np.sin(yaw), zero], axis=-1)
-col2 = np.stack([-np.sin(yaw), np.cos(yaw), zero], axis=-1)
-col3 = np.stack([zero, zero, one], axis=-1)
-root_rot = np.stack([col1, col2, col3], axis=-1)
-# jori = np.einsum('ijk,ilkm->iljm', root_rot, jori)
-jori = rot2aa_numpy(jori).reshape(-1, 22*3)
-root_rot = rot2aa_numpy(root_rot)
-
+jori = rot2aa_numpy(jori).reshape(-1, 22 * 3)
+smpl_layer = SMPLLayer(model_type="smplh")
 seq = SMPLSequence(
     poses_body=jori[:, 3:],
-    poses_root=jori[:, :3],
+    poses_root=root_rot,
     smpl_layer=smpl_layer,
     trans=root_pos,
 )
 
 v = Viewer()
 zero = np.ones((root_pos.shape[0], 1)) * 3
-cam_pos = root_pos + np.array([5, 5, 5])
+cam_pos = root_pos + np.array([2, 2, 2])
 cam = PinholeCamera(cam_pos, root_pos, v.window_size[0], v.window_size[1], viewer=v)
 v.run_animations = True
-v.scene.add(cam, rbs, seq)
-# v.scene.add(cam, seq)
+v.scene.add(cam, seq, rbs)
 v.set_temp_camera(cam)
 v.run()
