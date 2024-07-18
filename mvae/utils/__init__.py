@@ -9,6 +9,7 @@ import multiprocessing as mp
 from types import SimpleNamespace
 
 import gym
+import roma
 import yaml
 import argparse
 from argparse import ArgumentParser, Namespace
@@ -138,6 +139,7 @@ def global_to_local(poses: np.ndarray, parents: List[int], output_format="aa", i
     """
     assert output_format in ["aa", "rotmat"]
     assert input_format in ["aa", "rotmat"]
+    assert poses.ndim == 2
     dof = 3 if input_format == "aa" else 9
     n_joints = poses.shape[-1] // dof
     if input_format == "aa":
@@ -155,6 +157,7 @@ def global_to_local(poses: np.ndarray, parents: List[int], output_format="aa", i
             parent_rot = global_oris[..., parents[j], :, :]
             global_rot = global_oris[..., j, :, :]
             local_oris[..., j, :, :] = np.matmul(parent_rot.transpose((0, 2, 1)), global_rot)
+            # local_oris[..., j, :, :] = np.matmul(global_rot, parent_rot.transpose((0, 2, 1)))
 
     if output_format == "aa":
         local_oris = rot2aa_numpy(local_oris.reshape((-1, 3, 3)))
@@ -162,3 +165,29 @@ def global_to_local(poses: np.ndarray, parents: List[int], output_format="aa", i
     else:
         res = local_oris.reshape((-1, n_joints * 9))
     return res
+
+
+def anvel_to_rotmat(anvel: np.ndarray, dt: float = 1.0) -> np.ndarray:
+    """
+    Convert angular velocities to rotation matrices.
+    :param anvel: A numpy array of shape (f, 3) representing angular velocities.
+    :param dt: Time step between frames (default is 1.0).
+    :return: A numpy array of shape (f, 3, 3) of rotation matrices.
+    """
+    assert isinstance(anvel, np.ndarray)
+    assert anvel.shape[-1] == 3
+    f = anvel.shape[0]
+    rotmat = np.zeros((f, 3, 3))
+    rotmat[0] = np.eye(3)
+
+    for i in range(1, f):
+        w = anvel[i] * dt  # Scale angular velocity by time step
+        w_skew = np.array([
+            [0, -w[2], w[1]],
+            [w[2], 0, -w[0]],
+            [-w[1], w[0], 0]
+        ])
+        delta_R = expm(w_skew)  # Compute incremental rotation
+        rotmat[i] = delta_R @ rotmat[i - 1]  # Accumulate rotation
+
+    return rotmat

@@ -1,4 +1,10 @@
 mocap:
-  res/mocap/mvae1.npz
+  res/mocap/mvae1_local.npz
 
-memo: global
+memo: local
+
+hparam:
+  epoch_phase:
+    teacher: 50
+    ramp: 100
+    student: 500

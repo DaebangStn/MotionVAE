@@ -115,9 +115,10 @@ def main():
     )
 
     # learning parameters
-    teacher_epochs = 20
-    ramping_epochs = 20
-    student_epochs = 100
+    hparam = cfg['hparam']
+    teacher_epochs = hparam['epoch_phase']['teacher']
+    ramping_epochs = hparam['epoch_phase']['ramp']
+    student_epochs = hparam['epoch_phase']['student']
     args.num_epochs = teacher_epochs + ramping_epochs + student_epochs
     args.mini_batch_size = 64
     args.initial_lr = 1e-4

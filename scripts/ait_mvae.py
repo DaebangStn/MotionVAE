@@ -1,37 +1,8 @@
 from mvae.utils import *
 
 
-def anvel_to_rotmat(anvel: np.ndarray) -> np.ndarray:
-    """
-    Convert angular velocities to rotation matrices.
-    :param anvel: A numpy array of shape (f, 3).
-    :return: A numpy array of shape (f, 3, 3).
-    """
-    assert isinstance(anvel, np.ndarray)
-    assert anvel.shape[-1] == 3
-    f = anvel.shape[0]
-    rotmat = np.zeros((f, 3, 3))
-    rotmat[0] = np.eye(3)
-    for i in range(f-1):
-        w = anvel[i]
-        w_skew = np.array([
-            [0, -w[2], w[1]],
-            [w[2], 0, -w[0]],
-            [-w[1], w[0], 0]
-        ])
-        rotmat[i+1] = expm(w_skew) @ rotmat[i]
-
-    yUpToZUp = np.array([
-        [1, 0, 0],
-        [0, 0, 1],
-        [0, -1, 0]
-    ])
-    rotmat = rotmat @ yUpToZUp.T
-
-    return rotmat
-
 frames = 2500
-pose_vae_path = 'runs/0717_215930_0b16/posevae_c1_e6_l32.pt'
+pose_vae_path = 'runs/0717_223513_690c_local/posevae_c1_e6_l32.pt'
 pose0 = load_pose0(pose_vae_path).float().cuda()
 model = torch.load(pose_vae_path).cuda()
 model.eval()

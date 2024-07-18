@@ -1,3 +1,7 @@
+import numpy as np
+import roma
+import torch
+
 from mvae.utils import *
 from mvae.utils.args import build_amass_to_npy_arg
 
@@ -38,8 +42,8 @@ if __name__ == "__main__":
 
     jvel = estimate_velocity(jpos, 1)
 
-    jori = torch.from_numpy(poses)
-    jori = local_to_global(jori, skel[:, 0], output_format='rotmat')
+    jori_local = torch.from_numpy(poses)
+    jori = local_to_global(jori_local, skel[:, 0], output_format='rotmat')
     jori = to_numpy(jori.reshape(num_frame, -1, 3, 3))
 
     root_poses = jori[:, 0]
@@ -50,12 +54,12 @@ if __name__ == "__main__":
     # 2. Remove root joint
     face_jori = np.matmul(root_poses_inv[:, np.newaxis, :, :], jori)[2:, 1:, :, :2]
     face_jpos_local = np.einsum('ijk,ilk->ilj', root_poses_inv, jpos_local)[2:, 1:]
-    face_jvel = np.einsum('ijk,ilk->ilj', root_poses_inv[2:], jvel)[:, 1:]
+    face_jvel = np.einsum('ijk,ilk->ilj', root_poses_inv[2:, 1:], jvel)
     face_root_vel = np.einsum('ijk,ik->ij', root_poses_inv[2:], root_vel)
 
     num_frame = num_frame - 2  # 2 is due to the diff operation
 
-    #  256 = 3 + 3 + 3 * 21 + 3 * 21 + 6 * 21
+    #  265 = 3 + 3 + 3 * 21 + 3 * 21 + 6 * 21
     data = np.concatenate([face_root_vel, root_anvel, face_jpos_local.reshape(num_frame, -1),
                            face_jvel.reshape(num_frame, -1), face_jori.reshape(num_frame, -1)], axis=1)
     end_indices = np.array([num_frame - 1])
@@ -65,10 +69,47 @@ if __name__ == "__main__":
     }
     np.savez("./res/mocap/mvae1.npz", **out)
 
+    """
+        Reconstruct the sequence
+    """
+
     if arg.view:
-        rbs = RigidBodies(face_jpos_local, face_jori, length=0.1)
+        root_rot = anvel_to_rotmat(root_anvel) @ root_poses[0]
+        root_pos = np.zeros((num_frame, 3))
+        for i in range(num_frame - 1):
+            vel = root_rot[i] @ data[i, :3]
+            root_pos[i + 1] = root_pos[i] + vel
+
+        jpos = data[:, 6:69].reshape(-1, 21, 3)
+        jpos = np.einsum('ijk,ilk->ilj', root_rot, jpos)  # rotate xz along y axis
+        jpos += root_pos[:, None, :]
+        jpos = np.concatenate([root_pos[:, None, :], jpos], axis=1)
+
+        jori_6d = data[:, -126:].reshape(-1, 21, 3, 2)
+        jori_6d = roma.special_gramschmidt(torch.from_numpy(jori_6d)).numpy()
+        jori2 = np.tile(np.eye(3), (num_frame, 1, 1, 1))
+        jori2 = np.concatenate([jori2, jori_6d], axis=1)
+
+        jori2_rot = np.einsum('ijk,ilkm->iljm', root_rot, jori2)
+        jori2_local = global_to_local(jori2_rot.reshape(-1, 9*22), skel[:, 0], output_format='rotmat', input_format='rotmat')
+        jori2 = jori2_local.reshape(-1, 22, 3, 3)
+        root_rot = rot2aa_numpy(root_rot)
+
+        rbs = RigidBodies(jpos, jori2_rot, length=0.1)
+        jori2 = rot2aa_numpy(jori2).reshape(-1, 66)
+        smpl_layer = SMPLLayer(model_type="smplh")
+        seq = SMPLSequence(
+            poses_body=jori2[:, 3:],
+            poses_root=root_rot,
+            smpl_layer=smpl_layer,
+            trans=root_pos,
+        )
+
         v = Viewer()
+        zero = np.ones((root_pos.shape[0], 1)) * 3
+        cam_pos = root_pos + np.array([2, 2, 2])
+        cam = PinholeCamera(cam_pos, root_pos, v.window_size[0], v.window_size[1], viewer=v)
         v.run_animations = True
-        v.scene.camera.position = np.array([10.0, 2.5, 0.0])
-        v.scene.add(seq)
+        v.scene.add(cam, seq, rbs)
+        v.set_temp_camera(cam)
         v.run()
