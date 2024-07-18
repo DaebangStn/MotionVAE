@@ -72,15 +72,51 @@ def load_pose0(pose_vae_path: str) -> torch.Tensor:
     return data[pose0_idx:pose0_idx + 1]
 
 
-def face_anvel_from_root_rotmat(root_rotmat: np.ndarray) -> np.ndarray:
+def face_from_root_rotmat(root_rotmat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Extract face rotation velocity and face inverse rotation matrix from root rotation matrix.
+    :param root_rotmat: A numpy array of shape (f, 3, 3) representing root rotation matrices.
+    :return:
+        face rotation velocity: (f, 1) radians per second
+        inverse rotation matrix: (f, 3, 3) rotation matrices
+    """
     assert root_rotmat.ndim == 3, "root_rotmat must be 3D array. (f, 3, 3)"
     forward = root_rotmat[:, :, 0]
-    forward[:, 1] = 0  # y-up
+    forward[:, 2] = 0  # z-up
     forward /= np.linalg.norm(forward, axis=1, keepdims=True)
-    face_angle = np.arctan2(forward[:, 2], forward[:, 0])
-    face_anvel = np.diff(face_angle)
+    face_angle = np.arctan2(forward[:, 1], forward[:, 0])
+    face_anvel = estimate_velocity(face_angle, 1)
     face_anvel = (face_anvel + np.pi) % (2 * np.pi) - np.pi
-    return face_anvel
+    return face_anvel[:, None], root_rotmat.transpose((0, 2, 1))[2:]
+
+
+def face_angle_to_rotmat(face_angle: np.ndarray, inverse: bool = False) -> np.ndarray:
+    """
+    Convert face angles to rotation matrices.
+    :param face_angle: A numpy array of shape (f, 1) representing face angles.
+    :param inverse: Whether to return the inverse rotation matrices.
+    :return: A numpy array of shape (f, 3, 3) of rotation matrices.
+    """
+    assert isinstance(face_angle, np.ndarray)
+    assert face_angle.shape[-1] == 1
+    euler = torch.from_numpy(np.concatenate([np.zeros((face_angle.shape[0], 2)), face_angle], axis=1))
+    rotmat = roma.euler_to_rotmat('xyz', euler)
+    if inverse:
+        rotmat = roma.rotmat_inverse(rotmat)
+    return rotmat.numpy()
+
+
+def face_anvel_to_rotmat(face_anvel: np.ndarray, dt: float = 1.0) -> np.ndarray:
+    """
+    Convert face angular velocities to rotation matrices.
+    :param face_anvel: A numpy array of shape (f, 1) representing face angular velocities.
+    :param dt: Time step between frames (default is 1.0).
+    :return: A numpy array of shape (f, 3, 3) of rotation matrices.
+    """
+    assert isinstance(face_anvel, np.ndarray)
+    assert face_anvel.shape[-1] == 1
+    face_angle = np.cumsum(face_anvel * dt, axis=0)
+    return face_angle_to_rotmat(face_angle)
 
 
 def estimate_velocity(data_seq, h):
@@ -228,3 +264,10 @@ def andiff_to_rotmat(andiff: np.ndarray) -> np.ndarray:
     for i in range(f - 1):
         rotmat[i + 1] = Rdiff[i] @ rotmat[i]
     return rotmat
+
+
+RYtoZ = np.array([
+    [1, 0, 0],
+    [0, 0, 1],
+    [0, -1, 0]
+])
