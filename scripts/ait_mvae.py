@@ -1,11 +1,12 @@
 from mvae.utils import *
 
 
-frames = 2500
-pose_vae_path = 'runs/0717_223513_690c_local/posevae_c1_e6_l32.pt'
+frames = 500
+pose_vae_path = 'runs/0718_154738_5e29_global/posevae_c1_e6_l32.pt'
 pose0 = load_pose0(pose_vae_path).float().cuda()
 model = torch.load(pose_vae_path).cuda()
 model.eval()
+smpl_layer = SMPLLayer(model_type="smplh")
 
 poses = []
 curr_pose = pose0
@@ -30,32 +31,27 @@ for i in range(frames-1):
     root_pos[i+1] = root_pos[i] + vel
 root_pos[:, 2] = 0
 
-jpos = poses[:, 3:69].reshape(-1, 22, 3)
+jpos = poses[:, 6:69].reshape(-1, 21, 3)
 jpos = np.einsum('ijk,ilk->ilj', root_rot, jpos)  # rotate xz along y axis
 jpos += root_pos[:, None, :]
+jpos = np.concatenate([root_pos[:, None, :], jpos], axis=1)
+
+jori_6d = poses[:, -126:].reshape(-1, 21, 3, 2)
+jori_6d = roma.special_gramschmidt(torch.from_numpy(jori_6d)).numpy()
+jori = np.tile(np.eye(3), (frames, 1, 1, 1))
+jori = np.concatenate([jori, jori_6d], axis=1)
+jori2_rot = np.einsum('ijk,ilkm->iljm', root_rot, jori)
+
+rbs = RigidBodies(jpos, jori2_rot, length=0.1)
+
+jori2_local = global_to_local(jori2_rot.reshape(-1, 9 * 22), smpl_layer.skeletons()["body"].T[:, 0],
+                              output_format='rotmat', input_format='rotmat')
+jori2 = jori2_local.reshape(-1, 22, 3, 3)
+jori2 = rot2aa_numpy(jori2).reshape(-1, 66)
 root_rot = rot2aa_numpy(root_rot)
-
-jori_6d = poses[:, -132:].reshape(-1, 22, 3, 2)
-jori = np.zeros((frames, 22, 3, 3))
-
-# 6d orientation to 3d rotation matrix
-for f in range(frames):
-    for j in range(22):
-        v1 = jori_6d[f, j, :, 0]
-        v2 = jori_6d[f, j, :, 1]
-
-        v1 /= np.linalg.norm(v1)
-        v2 -= np.dot(v1, v2) * v1
-        v2 /= np.linalg.norm(v2)
-        v3 = np.cross(v1, v2)
-        jori[f, j] = np.stack([v1, v2, v3], axis=-1)
-
-rbs = RigidBodies(jpos, jori, length=0.1)
-jori = rot2aa_numpy(jori).reshape(-1, 22 * 3)
-smpl_layer = SMPLLayer(model_type="smplh")
 seq = SMPLSequence(
-    poses_body=jori[:, 3:],
-    poses_root=root_rot,
+    poses_body=jori2[:, 3:],
+    poses_root=jori2[:, :3],
     smpl_layer=smpl_layer,
     trans=root_pos,
 )
@@ -65,6 +61,6 @@ zero = np.ones((root_pos.shape[0], 1)) * 3
 cam_pos = root_pos + np.array([2, 2, 2])
 cam = PinholeCamera(cam_pos, root_pos, v.window_size[0], v.window_size[1], viewer=v)
 v.run_animations = True
-v.scene.add(cam, seq, rbs)
+v.scene.add(cam, seq)
 v.set_temp_camera(cam)
 v.run()

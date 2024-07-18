@@ -178,7 +178,11 @@ def anvel_to_rotmat(anvel: np.ndarray, dt: float = 1.0) -> np.ndarray:
     assert anvel.shape[-1] == 3
     f = anvel.shape[0]
     rotmat = np.zeros((f, 3, 3))
-    rotmat[0] = np.eye(3)
+    rotmat[0] = np.array([
+        [1, 0, 0],
+        [0, 0, -1],
+        [0, 1, 0]
+    ])
 
     for i in range(1, f):
         w = anvel[i] * dt  # Scale angular velocity by time step

@@ -1,7 +1,7 @@
 mocap:
-  res/mocap/mvae1_local.npz
+  res/mocap/mvae1.npz
 
-memo: local
+memo: global
 
 hparam:
   epoch_phase:
