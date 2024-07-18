@@ -219,6 +219,7 @@ def andiff_to_rotmat(andiff: np.ndarray) -> np.ndarray:
     f = andiff.shape[0]
     Rdiff = aa2rot_numpy(andiff)
     rotmat = np.zeros((f, 3, 3))
+    # rotmat[0] = np.eye(3)
     rotmat[0] = np.array([
         [1, 0, 0],
         [0, 0, -1],

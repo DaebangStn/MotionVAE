@@ -1,10 +1,10 @@
 mocap:
-  res/mocap/mvae1.npz
+  res/mocap/mvae3.npz
 
-memo: global
+memo: roll16
 
 hparam:
   epoch_phase:
     teacher: 20
-    ramp: 20
+    ramp: 100
     student: 100

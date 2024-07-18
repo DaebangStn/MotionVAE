@@ -109,7 +109,7 @@ def main():
         num_experts=6,
         num_condition_frames=1,
         num_future_predictions=1,
-        num_steps_per_rollout=8,
+        num_steps_per_rollout=16,
         kl_beta=1.0,
         load_saved_model=False,
     )
@@ -171,13 +171,21 @@ def main():
     good_masks = np.isin(all_indices, bad_indices, assume_unique=True, invert=True)
     selectable_indices = all_indices[good_masks]
 
-    pose_vae = PoseMixtureVAE(
+    # pose_vae = PoseMixtureVAE(
+    #     frame_size,
+    #     args.latent_size,
+    #     args.num_condition_frames,
+    #     args.num_future_predictions,
+    #     normalization,
+    #     args.num_experts,
+    # ).to(args.device)
+
+    pose_vae = PoseVAE(
         frame_size,
         args.latent_size,
         args.num_condition_frames,
         args.num_future_predictions,
         normalization,
-        args.num_experts,
     ).to(args.device)
 
     if isinstance(pose_vae, PoseVAE):
@@ -196,6 +204,9 @@ def main():
         pose_vae_path = "posevae_c{}_n{}_l{}.pt".format(
             args.num_condition_frames, args.num_embeddings, args.latent_size
         )
+    else:
+        raise NotImplementedError
+
     logdir_path_ = logdir_path(cfg)
     pose_vae_path = osp.join(logdir_path_, pose_vae_path)
     logger = StatsLogger(args, log_dir=logdir_path_)

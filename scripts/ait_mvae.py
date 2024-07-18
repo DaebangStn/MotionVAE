@@ -1,8 +1,8 @@
 from mvae.utils import *
 
 
-frames = 500
-pose_vae_path = 'runs/0718_163805_6810_global_diff/posevae_c1_e6_l32.pt'
+frames = 5000
+pose_vae_path = 'runs/0718_172204_e61f_roll16/posevae_c1_l32.pt'
 pose0 = load_pose0(pose_vae_path).float().cuda()
 model = torch.load(pose_vae_path).cuda()
 model.eval()
@@ -58,7 +58,7 @@ seq = SMPLSequence(
 
 v = Viewer()
 zero = np.ones((root_pos.shape[0], 1)) * 3
-cam_pos = root_pos + np.array([2, 2, 2])
+cam_pos = root_pos + np.array([4, 0, 0])
 cam = PinholeCamera(cam_pos, root_pos, v.window_size[0], v.window_size[1], viewer=v)
 v.run_animations = True
 v.scene.add(cam, seq)

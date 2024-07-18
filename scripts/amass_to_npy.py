@@ -63,7 +63,11 @@ if __name__ == "__main__":
         'data': data,
         'end_indices': end_indices
     }
-    np.savez("./res/mocap/mvae1.npz", **out)
+
+    dirpath = osp.dirname(arg.amass)
+    filename = osp.basename(arg.amass).replace('amass', 'mvae')
+
+    np.savez(osp.join(dirpath, filename), **out)
 
     """
         Reconstruct the sequence

@@ -4,9 +4,8 @@ from mvae.utils import *
 def build_amass_to_npy_arg() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
-        "--amass",
+        "amass",
         type=str,
-        required=False,
         default="res/mocap/amass1.npz",
         help="Path to the npz file containing the AMASS data.",
     )
