@@ -5,6 +5,6 @@ memo: global
 
 hparam:
   epoch_phase:
-    teacher: 50
-    ramp: 100
-    student: 500
+    teacher: 20
+    ramp: 20
+    student: 100

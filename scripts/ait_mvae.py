@@ -2,7 +2,7 @@ from mvae.utils import *
 
 
 frames = 500
-pose_vae_path = 'runs/0718_154738_5e29_global/posevae_c1_e6_l32.pt'
+pose_vae_path = 'runs/0718_163805_6810_global_diff/posevae_c1_e6_l32.pt'
 pose0 = load_pose0(pose_vae_path).float().cuda()
 model = torch.load(pose_vae_path).cuda()
 model.eval()
@@ -23,7 +23,7 @@ with torch.no_grad():
 
 poses = np.concatenate(poses, axis=0)
 root_anvel = poses[:, 3:6]
-root_rot = anvel_to_rotmat(root_anvel)
+root_rot = andiff_to_rotmat(root_anvel)
 zero = np.zeros((frames, 1))
 root_pos = np.zeros((frames, 3))
 for i in range(frames-1):

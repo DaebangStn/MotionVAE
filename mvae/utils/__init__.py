@@ -95,6 +95,19 @@ def estimate_velocity(data_seq, h):
     return data_vel_seq
 
 
+def estimate_angle_diff(rot_seq, h):
+    '''
+    Given a sequence of T rotation matrices, estimates the angle difference at T-2 steps.
+    Input sequence should be of shape (T, ..., 3, 3)
+    Returns the angle difference in axis-angle (T-2, ... , 3) format.
+    - h : step size
+    '''
+    R = rot_seq[2:]
+    Rp = rot_seq[1:-1]
+    Rdiff = R @ np.swapaxes(Rp, -1, -2)
+    return rot2aa_numpy(Rdiff)
+
+
 def estimate_angular_velocity(rot_seq, h):
     '''
     Given a sequence of T rotation matrices, estimates angular velocity at T-2 steps.
@@ -183,8 +196,7 @@ def anvel_to_rotmat(anvel: np.ndarray, dt: float = 1.0) -> np.ndarray:
         [0, 0, -1],
         [0, 1, 0]
     ])
-
-    for i in range(1, f):
+    for i in range(f - 1):
         w = anvel[i] * dt  # Scale angular velocity by time step
         w_skew = np.array([
             [0, -w[2], w[1]],
@@ -192,6 +204,26 @@ def anvel_to_rotmat(anvel: np.ndarray, dt: float = 1.0) -> np.ndarray:
             [-w[1], w[0], 0]
         ])
         delta_R = expm(w_skew)  # Compute incremental rotation
-        rotmat[i] = delta_R @ rotmat[i - 1]  # Accumulate rotation
+        rotmat[i + 1] = delta_R @ rotmat[i]  # Accumulate rotation
+    return rotmat
 
+
+def andiff_to_rotmat(andiff: np.ndarray) -> np.ndarray:
+    """
+    Convert angle differences to rotation matrices.
+    :param andiff: A numpy array of shape (f, 3) representing angle differences.
+    :return: A numpy array of shape (f, 3, 3) of rotation matrices.
+    """
+    assert isinstance(andiff, np.ndarray)
+    assert andiff.shape[-1] == 3
+    f = andiff.shape[0]
+    Rdiff = aa2rot_numpy(andiff)
+    rotmat = np.zeros((f, 3, 3))
+    rotmat[0] = np.array([
+        [1, 0, 0],
+        [0, 0, -1],
+        [0, 1, 0]
+    ])
+    for i in range(f - 1):
+        rotmat[i + 1] = Rdiff[i] @ rotmat[i]
     return rotmat

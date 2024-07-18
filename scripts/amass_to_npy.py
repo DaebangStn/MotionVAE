@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     root_poses = jori[:, 0]
     root_poses_inv = invert_rotmat(root_poses)
-    root_anvel = estimate_angular_velocity(root_poses, 1)
+    root_andiff = estimate_angle_diff(root_poses, 1)
 
     # 1. Truncate position values to make the size same to the velocity
     # 2. Remove root joint
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     num_frame = num_frame - 2  # 2 is due to the diff operation
 
     #  265 = 3 + 3 + 3 * 21 + 3 * 21 + 6 * 21
-    data = np.concatenate([face_root_vel, root_anvel, face_jpos_local.reshape(num_frame, -1),
+    data = np.concatenate([face_root_vel, root_andiff, face_jpos_local.reshape(num_frame, -1),
                            face_jvel.reshape(num_frame, -1), face_jori.reshape(num_frame, -1)], axis=1)
     end_indices = np.array([num_frame - 1])
     out = {
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     """
 
     if arg.view:
-        root_rot = anvel_to_rotmat(root_anvel) @ root_poses[0]
+        root_rot = andiff_to_rotmat(root_andiff) @ root_poses[0]
         root_pos = np.zeros((num_frame, 3))
         for i in range(num_frame - 1):
             vel = root_rot[i] @ data[i, :3]
